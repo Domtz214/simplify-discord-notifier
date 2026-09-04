@@ -18,11 +18,11 @@ DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 
 # --- DISCORD ROLE CONFIGURATION ---
 ROLE_MAP = {
-    "SWE": "123456789012345678",      # Replace with your actual SWE Role ID
-    "Data/AI": "234567890123456789",  # Replace with your actual Data/AI Role ID
-    "Quant": "345678901234567890",    # Replace with your actual Quant Role ID
-    "PM": "456789012345678901",       # Replace with your actual PM Role ID
-    "Hardware": "567890123456789012", # Replace with your actual Hardware Role ID
+    "SWE": "1545537970856140821",
+    "Data/AI": "1545538128666955886",
+    "Quant": "1545538199525527693",
+    "PM": "1545538164268212224",
+    "Hardware": "1545538181095624856",
 }
 
 COLOR_MAP = {

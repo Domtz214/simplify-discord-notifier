@@ -5,33 +5,33 @@ import hashlib
 import requests
 from datetime import datetime, timezone
 
-# Target URLs (Checks both primary and off-season files)
+# Target URLs — Includes both primary READMEs and internal data tables
 TARGET_README_URLS = [
     "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README.md",
-    "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README-Off-Season.md"
+    "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README-Off-Season.md",
+    "https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/README.md",
+    "https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/README-Off-Season.md"
 ]
 
 STATE_FILE = "seen_jobs.json"
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 
 # --- DISCORD ROLE CONFIGURATION ---
-# Replace numbers with your actual Discord Role IDs (Right-click role -> Copy Role ID)
 ROLE_MAP = {
-    "SWE": "1545537970856140821",
-    "Data/AI": "1545538128666955886",
-    "Quant": "1545538199525527693",
-    "PM": "1545538164268212224",
-    "Hardware": "1545538181095624856",
+    "SWE": "123456789012345678",      # Replace with your actual SWE Role ID
+    "Data/AI": "234567890123456789",  # Replace with your actual Data/AI Role ID
+    "Quant": "345678901234567890",    # Replace with your actual Quant Role ID
+    "PM": "456789012345678901",       # Replace with your actual PM Role ID
+    "Hardware": "567890123456789012", # Replace with your actual Hardware Role ID
 }
 
-# Distinct embed side-bar accent colors per category (Hex converted to integer)
 COLOR_MAP = {
-    "SWE": 3447003,       # Vibrant Blue
-    "Data/AI": 10181046,   # Purple
-    "Quant": 3066993,     # Green / Money
-    "PM": 15105570,       # Orange / Product
-    "Hardware": 15158332, # Red / Silicon
-    "General": 9807270    # Neutral Dark Gray
+    "SWE": 3447003,       # Blue
+    "Data/AI": 10181046,  # Purple
+    "Quant": 3066993,     # Green
+    "PM": 15105570,       # Orange
+    "Hardware": 15158332, # Red
+    "General": 9807270    # Gray
 }
 
 def categorize_job(role_title):
@@ -52,32 +52,45 @@ def categorize_job(role_title):
     return "General"
 
 def get_job_hash(company, role, location, link):
-    """Generate a unique hash for each posting."""
+    """Generate a unique MD5 hash for deduplication."""
     raw_id = f"{company.strip().lower()}|{role.strip().lower()}|{location.strip().lower()}|{link.strip()}"
     return hashlib.md5(raw_id.encode('utf-8')).hexdigest()
 
-def clean_markdown_link(text):
-    """Extract clean text and URL from markdown syntax [Text](URL), stripping HTML comments/tags."""
-    # Remove HTML comments like <!-- ... -->
-    text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
-    
-    # Extract markdown link [label](url)
-    match = re.search(r'\[(.*?)\]\((.*?)\)', text)
-    if match:
-        clean_text = re.sub(r'<.*?>', '', match.group(1)).strip()
-        return clean_text, match.group(2).strip()
-    
-    # Clean standard plain text
-    clean_text = re.sub(r'<.*?>', '', text).strip()
-    return clean_text, ""
+def clean_text(raw_html):
+    """Strip HTML comments, sub-tags, and extra whitespace to extract clean plain text."""
+    # Remove HTML comments
+    text = re.sub(r'<!--.*?-->', '', raw_html, flags=re.DOTALL)
+    # Remove HTML tags (like <sub>, <img>, <a>)
+    text = re.sub(r'<.*?>', '', text)
+    # Remove markdown link text wrapper if present
+    text = re.sub(r'\[(.*?)\]\(.*?\)', r'\1', text)
+    return text.strip()
 
-# Updated list of candidate URLs for Simplify Internship Repositories
-TARGET_README_URLS = [
-    "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README.md",
-    "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/main/README.md",
-    "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README-Off-Season.md",
-    "https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/README.md"
-]
+def extract_all_links(cell_text):
+    """Extract all valid HTTP/HTTPS URLs from Markdown syntax or raw HTML href tags."""
+    urls = []
+    # Match markdown links [Text](URL)
+    md_matches = re.findall(r'\[.*?\]\((https?://[^\s\)]+)\)', cell_text)
+    urls.extend(md_matches)
+    
+    # Match HTML href links <a href="URL">
+    html_matches = re.findall(r'href=["\'](https?://[^\s"\']+)["\']', cell_text)
+    urls.extend(html_matches)
+    
+    # Match direct raw HTTP URLs
+    raw_matches = re.findall(r'(https?://[^\s\|<>\)]+)', cell_text)
+    urls.extend(raw_matches)
+    
+    # Deduplicate while preserving order
+    seen = set()
+    clean_urls = []
+    for u in urls:
+        u_clean = u.rstrip('"\')')
+        if u_clean not in seen:
+            seen.add(u_clean)
+            clean_urls.append(u_clean)
+            
+    return clean_urls
 
 def fetch_and_parse_jobs():
     jobs = []
@@ -100,7 +113,7 @@ def fetch_and_parse_jobs():
                 if not line_str.startswith("|"):
                     continue
                 
-                # Skip table headers, alignment rows, and empty rows
+                # Skip headers and separator lines
                 lower_line = line_str.lower()
                 if "---" in lower_line or "| company" in lower_line or "| ---" in lower_line:
                     continue
@@ -109,43 +122,35 @@ def fetch_and_parse_jobs():
                 if len(cols) < 3:
                     continue
                 
-                # Extract text from primary columns
-                company_raw = cols[0]
-                role_raw = cols[1]
-                location_raw = cols[2] if len(cols) > 2 else "Remote / Unknown"
+                company_clean = clean_text(cols[0])
+                role_clean = clean_text(cols[1])
+                location_clean = clean_text(cols[2]) if len(cols) > 2 else "Remote / Unknown"
                 
-                company_name, company_url = clean_markdown_link(company_raw)
-                role_title, role_url = clean_markdown_link(role_raw)
-                location, _ = clean_markdown_link(location_raw)
-                
-                # Search across ALL columns for the first valid application HTTP(S) link
-                target_link = ""
-                for col in cols:
-                    _, extracted_url = clean_markdown_link(col)
-                    if extracted_url and extracted_url.startswith("http"):
-                        # Exclude company profile pages if direct apply links exist
-                        if "simplify.jobs/p/" not in extracted_url or not target_link:
-                            target_link = extracted_url
-                            if "simplify.jobs/p/" not in extracted_url:
-                                break  # Preferred direct link found
-                
-                if not target_link:
+                # Find all links in the current row
+                all_links = extract_all_links(line_str)
+                if not all_links:
                     continue
                 
-                # Fallbacks for missing text
-                if not company_name:
-                    company_name = "Unknown Company"
-                if not role_title:
-                    role_title = "Internship Position"
-                    
-                category = categorize_job(role_title)
-                job_id = get_job_hash(company_name, role_title, location, target_link)
+                # Filter out raw GitHub badge/asset links
+                valid_links = [l for l in all_links if "githubassets.com" not in l and "shields.io" not in l]
+                if not valid_links:
+                    continue
+                
+                # Prefer direct external application links over Simplify job directory links
+                target_link = valid_links[0]
+                for l in valid_links:
+                    if "simplify.jobs/p/" not in l and "github.com" not in l:
+                        target_link = l
+                        break
+                
+                category = categorize_job(role_clean)
+                job_id = get_job_hash(company_clean, role_clean, location_clean, target_link)
                 
                 jobs.append({
                     "id": job_id,
-                    "company": company_name,
-                    "role": role_title,
-                    "location": location if location else "Remote / Unknown",
+                    "company": company_clean if company_clean else "Unknown Company",
+                    "role": role_clean if role_clean else "Internship Position",
+                    "location": location_clean if location_clean else "Remote / Unknown",
                     "link": target_link,
                     "category": category
                 })
@@ -163,7 +168,6 @@ def send_discord_notification(job):
     category = job['category']
     role_id = ROLE_MAP.get(category)
     
-    # Ping specific role outside embed (Required for push notifications to trigger)
     ping_text = f"🚨 <@&{role_id}> **New {category} Internship Opening!**" if role_id else "🚨 **New Internship Opening!**"
     
     embed = {
@@ -183,10 +187,10 @@ def send_discord_notification(job):
             }
         ],
         "footer": {
-            "text": "SimplifyJobs Summer 2027 • Automated Tracker",
+            "text": "SimplifyJobs Tracker • Executive Alert",
             "icon_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
         },
-        "timestamp": datetime.now(timezone.utc).isoformat()  # Displays local time per user in Discord
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
     payload = {

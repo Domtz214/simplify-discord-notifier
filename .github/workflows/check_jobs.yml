@@ -3,7 +3,7 @@ name: Check New Internships
 on:
   schedule:
     # Runs every 15 minutes
-    - cron: '*/15 * * * *'
+    - cron: '4,19,34,49 * * * *'
   workflow_dispatch: # Allows manual triggers from GitHub UI or CLI
 
 jobs:

@@ -23,7 +23,7 @@ def clean_markdown_link(text):
 
 def fetch_and_parse_jobs():
     response = requests.get(TARGET_README_URL)
-    if response.status_status != 200 and response.status_code != 200:
+    if response.status_code != 200:
         # Fallback to main branch or Off-Season if dev/README isn't accessible
         fallback_url = "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/main/README.md"
         response = requests.get(fallback_url)

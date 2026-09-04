@@ -57,11 +57,19 @@ def get_job_hash(company, role, location, link):
     return hashlib.md5(raw_id.encode('utf-8')).hexdigest()
 
 def clean_markdown_link(text):
-    """Extract clean text and URL from markdown syntax [Text](URL)."""
+    """Extract clean text and URL from markdown syntax [Text](URL), stripping HTML comments/tags."""
+    # Remove HTML comments like <!-- ... -->
+    text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
+    
+    # Extract markdown link [label](url)
     match = re.search(r'\[(.*?)\]\((.*?)\)', text)
     if match:
-        return match.group(1).strip(), match.group(2).strip()
-    return text.strip(), ""
+        clean_text = re.sub(r'<.*?>', '', match.group(1)).strip()
+        return clean_text, match.group(2).strip()
+    
+    # Clean standard plain text
+    clean_text = re.sub(r'<.*?>', '', text).strip()
+    return clean_text, ""
 
 # Updated list of candidate URLs for Simplify Internship Repositories
 TARGET_README_URLS = [
@@ -81,51 +89,72 @@ def fetch_and_parse_jobs():
                 print(f"[Debug] Skipped {url} (HTTP {response.status_code})")
                 continue
             
-            print(f"[Debug] Successfully fetched {url}")
+            print(f"[Debug] Processing {url}...")
             lines = response.text.splitlines()
+            parsed_count = 0
             
             for line in lines:
                 line_str = line.strip()
+                
                 # Must be a markdown table row
                 if not line_str.startswith("|"):
                     continue
                 
-                # Skip table headers and alignment rows
+                # Skip table headers, alignment rows, and empty rows
                 lower_line = line_str.lower()
-                if "company" in lower_line or "---" in lower_line or "role" in lower_line and "location" in lower_line:
+                if "---" in lower_line or "| company" in lower_line or "| ---" in lower_line:
                     continue
                 
                 cols = [c.strip() for c in line_str.split("|")[1:-1]]
-                if len(cols) < 4:
+                if len(cols) < 3:
                     continue
-                    
+                
+                # Extract text from primary columns
                 company_raw = cols[0]
                 role_raw = cols[1]
-                location = cols[2]
-                application_raw = cols[3]
+                location_raw = cols[2] if len(cols) > 2 else "Remote / Unknown"
                 
                 company_name, company_url = clean_markdown_link(company_raw)
                 role_title, role_url = clean_markdown_link(role_raw)
-                _, app_url = clean_markdown_link(application_raw)
+                location, _ = clean_markdown_link(location_raw)
                 
-                # Prefer application link, fall back to role/company link
-                target_link = app_url if app_url else (role_url if role_url else company_url)
+                # Search across ALL columns for the first valid application HTTP(S) link
+                target_link = ""
+                for col in cols:
+                    _, extracted_url = clean_markdown_link(col)
+                    if extracted_url and extracted_url.startswith("http"):
+                        # Exclude company profile pages if direct apply links exist
+                        if "simplify.jobs/p/" not in extracted_url or not target_link:
+                            target_link = extracted_url
+                            if "simplify.jobs/p/" not in extracted_url:
+                                break  # Preferred direct link found
+                
                 if not target_link:
                     continue
+                
+                # Fallbacks for missing text
+                if not company_name:
+                    company_name = "Unknown Company"
+                if not role_title:
+                    role_title = "Internship Position"
                     
                 category = categorize_job(role_title)
                 job_id = get_job_hash(company_name, role_title, location, target_link)
                 
                 jobs.append({
                     "id": job_id,
-                    "company": company_name if company_name else "Unknown Company",
-                    "role": role_title if role_title else "Internship Position",
-                    "location": location if location else "Unknown / Remote",
+                    "company": company_name,
+                    "role": role_title,
+                    "location": location if location else "Remote / Unknown",
                     "link": target_link,
                     "category": category
                 })
+                parsed_count += 1
+                
+            print(f"[Debug] Extracted {parsed_count} jobs from {url}")
+            
         except Exception as e:
-            print(f"[Debug] Error fetching {url}: {e}")
+            print(f"[Debug] Error processing {url}: {e}")
             
     return jobs
 

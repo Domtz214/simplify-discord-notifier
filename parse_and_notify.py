@@ -3,6 +3,8 @@ import re
 import json
 import hashlib
 import requests
+import datetime
+import timezone
 
 # Target URLs (Checks both primary and off-season files)
 TARGET_README_URLS = [
@@ -106,9 +108,6 @@ def fetch_and_parse_jobs():
             })
             
     return jobs
-
-from datetime 
-import datetime, timezone
 
 def send_discord_notification(job):
     """Builds and posts an Executive Card Discord Embed with targeted role pings."""

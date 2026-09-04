@@ -64,48 +64,69 @@ def clean_markdown_link(text):
         return match.group(1).strip(), match.group(2).strip()
     return text.strip(), ""
 
+# Updated list of candidate URLs for Simplify Internship Repositories
+TARGET_README_URLS = [
+    "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README.md",
+    "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/main/README.md",
+    "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README-Off-Season.md",
+    "https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/README.md"
+]
+
 def fetch_and_parse_jobs():
     jobs = []
     
     for url in TARGET_README_URLS:
-        response = requests.get(url)
-        if response.status_code != 200:
-            continue  # Skip quietly if file isn't available
-        
-        lines = response.text.splitlines()
-        
-        for line in lines:
-            if not line.startswith("|") or "Company" in line or "---" in line:
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code != 200:
+                print(f"[Debug] Skipped {url} (HTTP {response.status_code})")
                 continue
             
-            cols = [c.strip() for c in line.split("|")[1:-1]]
-            if len(cols) < 4:
-                continue
+            print(f"[Debug] Successfully fetched {url}")
+            lines = response.text.splitlines()
+            
+            for line in lines:
+                line_str = line.strip()
+                # Must be a markdown table row
+                if not line_str.startswith("|"):
+                    continue
                 
-            company_raw = cols[0]
-            role_raw = cols[1]
-            location = cols[2]
-            application_raw = cols[3]
-            
-            company_name, _ = clean_markdown_link(company_raw)
-            role_title, role_url = clean_markdown_link(role_raw)
-            _, app_url = clean_markdown_link(application_raw)
-            
-            target_link = app_url if app_url else role_url
-            if not target_link:
-                continue
+                # Skip table headers and alignment rows
+                lower_line = line_str.lower()
+                if "company" in lower_line or "---" in lower_line or "role" in lower_line and "location" in lower_line:
+                    continue
                 
-            category = categorize_job(role_title)
-            job_id = get_job_hash(company_name, role_title, location, target_link)
-            
-            jobs.append({
-                "id": job_id,
-                "company": company_name,
-                "role": role_title,
-                "location": location if location else "Unknown / Remote",
-                "link": target_link,
-                "category": category
-            })
+                cols = [c.strip() for c in line_str.split("|")[1:-1]]
+                if len(cols) < 4:
+                    continue
+                    
+                company_raw = cols[0]
+                role_raw = cols[1]
+                location = cols[2]
+                application_raw = cols[3]
+                
+                company_name, company_url = clean_markdown_link(company_raw)
+                role_title, role_url = clean_markdown_link(role_raw)
+                _, app_url = clean_markdown_link(application_raw)
+                
+                # Prefer application link, fall back to role/company link
+                target_link = app_url if app_url else (role_url if role_url else company_url)
+                if not target_link:
+                    continue
+                    
+                category = categorize_job(role_title)
+                job_id = get_job_hash(company_name, role_title, location, target_link)
+                
+                jobs.append({
+                    "id": job_id,
+                    "company": company_name if company_name else "Unknown Company",
+                    "role": role_title if role_title else "Internship Position",
+                    "location": location if location else "Unknown / Remote",
+                    "link": target_link,
+                    "category": category
+                })
+        except Exception as e:
+            print(f"[Debug] Error fetching {url}: {e}")
             
     return jobs
 

@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 TARGET_README_URLS = [
     "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README.md",
     "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README-Off-Season.md",
-    "https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/README.md"
 ]
 
 STATE_FILE = "seen_jobs.json"

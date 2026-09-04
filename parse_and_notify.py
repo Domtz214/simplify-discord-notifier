@@ -3,14 +3,13 @@ import re
 import json
 import hashlib
 import requests
+from bs4 import BeautifulSoup
 from datetime import datetime, timezone
 
-# Target URLs — Includes both primary READMEs and internal data tables
 TARGET_README_URLS = [
     "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README.md",
     "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README-Off-Season.md",
-    "https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/README.md",
-    "https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/README-Off-Season.md"
+    "https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/README.md"
 ]
 
 STATE_FILE = "seen_jobs.json"
@@ -35,7 +34,6 @@ COLOR_MAP = {
 }
 
 def categorize_job(role_title):
-    """Categorizes roles based on keywords in the title."""
     title_lower = role_title.lower()
 
     if any(k in title_lower for k in ["quant", "trader", "trading", "financial engineer"]):
@@ -52,119 +50,107 @@ def categorize_job(role_title):
     return "General"
 
 def get_job_hash(company, role, location, link):
-    """Generate a unique MD5 hash for deduplication."""
     raw_id = f"{company.strip().lower()}|{role.strip().lower()}|{location.strip().lower()}|{link.strip()}"
     return hashlib.md5(raw_id.encode('utf-8')).hexdigest()
 
-def clean_text(raw_html):
-    """Strip HTML comments, sub-tags, and extra whitespace to extract clean plain text."""
-    # Remove HTML comments
-    text = re.sub(r'<!--.*?-->', '', raw_html, flags=re.DOTALL)
-    # Remove HTML tags (like <sub>, <img>, <a>)
-    text = re.sub(r'<.*?>', '', text)
-    # Remove markdown link text wrapper if present
-    text = re.sub(r'\[(.*?)\]\(.*?\)', r'\1', text)
-    return text.strip()
-
-def extract_all_links(cell_text):
-    """Extract all valid HTTP/HTTPS URLs from Markdown syntax or raw HTML href tags."""
-    urls = []
-    # Match markdown links [Text](URL)
-    md_matches = re.findall(r'\[.*?\]\((https?://[^\s\)]+)\)', cell_text)
-    urls.extend(md_matches)
-    
-    # Match HTML href links <a href="URL">
-    html_matches = re.findall(r'href=["\'](https?://[^\s"\']+)["\']', cell_text)
-    urls.extend(html_matches)
-    
-    # Match direct raw HTTP URLs
-    raw_matches = re.findall(r'(https?://[^\s\|<>\)]+)', cell_text)
-    urls.extend(raw_matches)
-    
-    # Deduplicate while preserving order
-    seen = set()
-    clean_urls = []
-    for u in urls:
-        u_clean = u.rstrip('"\')')
-        if u_clean not in seen:
-            seen.add(u_clean)
-            clean_urls.append(u_clean)
-            
-    return clean_urls
+def clean_text(text):
+    """Strip unnecessary whitespace and non-breaking spaces."""
+    return re.sub(r'\s+', ' ', text).strip()
 
 def fetch_and_parse_jobs():
     jobs = []
     
     for url in TARGET_README_URLS:
         try:
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, timeout=15)
             if response.status_code != 200:
                 print(f"[Debug] Skipped {url} (HTTP {response.status_code})")
                 continue
             
-            print(f"[Debug] Processing {url}...")
-            lines = response.text.splitlines()
+            print(f"[Debug] Parsing HTML content from {url}...")
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Locate all tables in the document
+            tables = soup.find_all('table')
             parsed_count = 0
             
-            for line in lines:
-                line_str = line.strip()
+            for table in tables:
+                rows = table.find_all('tr')
+                last_company = "Unknown Company"
                 
-                # Must be a markdown table row
-                if not line_str.startswith("|"):
-                    continue
-                
-                # Skip headers and separator lines
-                lower_line = line_str.lower()
-                if "---" in lower_line or "| company" in lower_line or "| ---" in lower_line:
-                    continue
-                
-                cols = [c.strip() for c in line_str.split("|")[1:-1]]
-                if len(cols) < 3:
-                    continue
-                
-                company_clean = clean_text(cols[0])
-                role_clean = clean_text(cols[1])
-                location_clean = clean_text(cols[2]) if len(cols) > 2 else "Remote / Unknown"
-                
-                # Find all links in the current row
-                all_links = extract_all_links(line_str)
-                if not all_links:
-                    continue
-                
-                # Filter out raw GitHub badge/asset links
-                valid_links = [l for l in all_links if "githubassets.com" not in l and "shields.io" not in l]
-                if not valid_links:
-                    continue
-                
-                # Prefer direct external application links over Simplify job directory links
-                target_link = valid_links[0]
-                for l in valid_links:
-                    if "simplify.jobs/p/" not in l and "github.com" not in l:
-                        target_link = l
-                        break
-                
-                category = categorize_job(role_clean)
-                job_id = get_job_hash(company_clean, role_clean, location_clean, target_link)
-                
-                jobs.append({
-                    "id": job_id,
-                    "company": company_clean if company_clean else "Unknown Company",
-                    "role": role_clean if role_clean else "Internship Position",
-                    "location": location_clean if location_clean else "Remote / Unknown",
-                    "link": target_link,
-                    "category": category
-                })
-                parsed_count += 1
-                
+                for row in rows:
+                    cols = row.find_all('td')
+                    if not cols or len(cols) < 4:
+                        continue  # Skip table header (th) rows
+                    
+                    # 1. Company Column Extraction
+                    company_col = cols[0]
+                    company_raw = clean_text(company_col.get_text())
+                    
+                    if "↳" in company_raw or not company_raw:
+                        company_name = last_company
+                    else:
+                        company_name = company_raw.replace("🔥", "").strip()
+                        last_company = company_name
+
+                    # 2. Role Title Extraction
+                    role_title = clean_text(cols[1].get_text())
+
+                    # 3. Location Extraction (Handles multi-location dropdowns)
+                    location_col = cols[2]
+                    summary_tag = location_col.find('summary')
+                    if summary_tag:
+                        # Extract dropdown label e.g., "7 locations"
+                        location = clean_text(summary_tag.get_text())
+                    else:
+                        location = clean_text(location_col.get_text())
+                    
+                    if not location:
+                        location = "Remote / Unknown"
+
+                    # 4. Application Link Extraction
+                    app_col = cols[3]
+                    target_link = ""
+                    
+                    # Look for explicit Apply button image
+                    apply_img = app_col.find('img', alt=re.compile(r'Apply', re.I))
+                    if apply_img and apply_img.parent and apply_img.parent.name == 'a':
+                        target_link = apply_img.parent.get('href', '')
+                    else:
+                        # Fallback to any external link inside the cell
+                        all_anchors = app_col.find_all('a', href=True)
+                        for a in all_anchors:
+                            href = a['href']
+                            if "simplify.jobs/p/" not in href and href.startswith("http"):
+                                target_link = href
+                                break
+                            elif not target_link and href.startswith("http"):
+                                target_link = href
+
+                    if not target_link:
+                        continue
+
+                    category = categorize_job(role_title)
+                    job_id = get_job_hash(company_name, role_title, location, target_link)
+
+                    jobs.append({
+                        "id": job_id,
+                        "company": company_name,
+                        "role": role_title,
+                        "location": location,
+                        "link": target_link,
+                        "category": category
+                    })
+                    parsed_count += 1
+
             print(f"[Debug] Extracted {parsed_count} jobs from {url}")
-            
+
         except Exception as e:
             print(f"[Debug] Error processing {url}: {e}")
-            
+
     return jobs
 
 def send_discord_notification(job):
-    """Builds and posts an Executive Card Discord Embed with targeted role pings."""
     category = job['category']
     role_id = ROLE_MAP.get(category)
     

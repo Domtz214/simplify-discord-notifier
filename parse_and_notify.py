@@ -3,8 +3,7 @@ import re
 import json
 import hashlib
 import requests
-import datetime
-import timezone
+from datetime import datetime, timezone
 
 # Target URLs (Checks both primary and off-season files)
 TARGET_README_URLS = [

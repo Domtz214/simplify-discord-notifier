@@ -107,33 +107,44 @@ def fetch_and_parse_jobs():
             
     return jobs
 
+from datetime 
+import datetime, timezone
+
 def send_discord_notification(job):
-    """Builds and posts a Discord Embed with targeted role pings."""
+    """Builds and posts an Executive Card Discord Embed with targeted role pings."""
     category = job['category']
     role_id = ROLE_MAP.get(category)
     
-    # Ping specific role outside embed (Required for notifications to trigger)
-    ping_text = f"<@&{role_id}> 🚨 **New {category} Opening!**" if role_id else "🚨 **New Internship Opening!**"
+    # Ping specific role outside embed (Required for push notifications to trigger)
+    ping_text = f"🚨 <@&{role_id}> **New {category} Internship Opening!**" if role_id else "🚨 **New Internship Opening!**"
     
     embed = {
-        "title": f"💼 {job['company']}",
+        "title": f"🏢 {job['company']}",
         "color": COLOR_MAP.get(category, COLOR_MAP["General"]),
+        "thumbnail": {
+            "url": "https://raw.githubusercontent.com/SimplifyJobs/Simplify-Jobs/main/assets/icon.png"
+        },
         "fields": [
-            {"name": "📌 Position", "value": job['role'], "inline": True},
-            {"name": "📍 Location", "value": job['location'], "inline": True},
-            {"name": "🏷️ Category", "value": f"`{category}`", "inline": True},
-            {"name": "🔗 Application", "value": f"[**Apply via Simplify**]({job['link']})", "inline": False}
+            {"name": "💻 Position", "value": f"**{job['role']}**", "inline": True},
+            {"name": "🏷️ Track", "value": f"`{category}`", "inline": True},
+            {"name": "📍 Location", "value": job['location'], "inline": False},
+            {
+                "name": "⚡ Direct Link", 
+                "value": f"```\n[ Click Below to Apply ]\n```\n🔗 [**Open Application Portal**]({job['link']})", 
+                "inline": False
+            }
         ],
         "footer": {
             "text": "SimplifyJobs Summer 2027 • Automated Tracker",
             "icon_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
-        }
+        },
+        "timestamp": datetime.now(timezone.utc).isoformat()  # Displays local time per user in Discord
     }
     
     payload = {
         "username": "Simplify Job Alerts",
         "avatar_url": "https://raw.githubusercontent.com/SimplifyJobs/Simplify-Jobs/main/assets/icon.png",
-        "content": ping_text,  # Role mention triggers push notifications
+        "content": ping_text,
         "embeds": [embed]
     }
     

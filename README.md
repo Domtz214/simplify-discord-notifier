@@ -55,4 +55,4 @@ Github's scheduler was unreliable, external tool does the job more consistently.
 
 ## Notes
 
-- Not affiliated with SimplifyJobs — this just reads their public data.
+- Not affiliated with SimplifyJobs, this just reads their public data.

@@ -26,7 +26,8 @@ Any brand-new listings → posted to Discord via webhook
 seen_jobs.json gets updated and committed back to this repo
 ```
 
-**Why an external cron service (cron-job.org) instead of just GitHub's built-in scheduler?** Github's scheduler was unreliable, external tool does the job more consistently.
+**Why an external cron service (cron-job.org) instead of just GitHub's built-in scheduler?** 
+Github's scheduler was unreliable, external tool does the job more consistently.
 
 ## Files
 
@@ -48,7 +49,7 @@ seen_jobs.json gets updated and committed back to this repo
    ```
    https://api.github.com/repos/{your-username}/{your-repo}/actions/workflows/check_jobs.yml/dispatches
    ```
-   with headers `Authorization: Bearer YOUR_TOKEN`, `Accept: application/vnd.github+json`, `Content-Type: application/json`, and body `{"ref":"main"}` — scheduled every 15 minutes.
+   with headers `Authorization: Bearer YOUR_TOKEN`, `Accept: application/vnd.github+json`, `Content-Type: application/json`, and body `{"ref":"main"}`, scheduled every 15 minutes.
    I've already done this, we can continue to use my account if needed.
 6. Push everything, trigger a manual run once to confirm it works, then let it run.
 

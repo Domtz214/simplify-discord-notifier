@@ -35,9 +35,9 @@ COLOR_MAP = {
 def categorize_job(role_title):
     title_lower = role_title.lower()
 
-    if any(k in title_lower for k in ["quant", "trader", "trading", "financial engineer, quantitative"]):
+    if any(k in title_lower for k in ["quant", "trader", "trading", "financial engineer", "quantitative"]):
         return "Quant"
-    elif any(k in title_lower for k in ["data engineer", "ai", "machine learning", "ml", "deep learning", "analytics", "data analytics", "ai engineer"]):
+    elif any(k in title_lower for k in ["data engineer", "ai", "machine learning", "ml", "deep learning", "analytics", "data analytics", "ai engineer", "data science", "data scientist"]):
         return "Data/AI"
     elif any(k in title_lower for k in ["product manager", "product management", "program manager", "pm"]):
         return "PM"

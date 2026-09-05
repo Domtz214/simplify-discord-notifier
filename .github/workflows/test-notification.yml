@@ -1,0 +1,26 @@
+name: Test Notification Preview
+
+# Manual trigger only — no schedule. Safe to leave in the repo permanently;
+# it will never run on its own, only when you click "Run workflow".
+on:
+  workflow_dispatch:
+
+jobs:
+  send-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: python -m pip install requests
+
+      - name: Send test notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python test_notification.py

@@ -150,29 +150,24 @@ def fetch_and_parse_jobs():
 
     return jobs
 
+import time
+
 def send_discord_notification(job):
     category = job['category']
     role_id = ROLE_MAP.get(category)
     ping_text = f"<@&{role_id}>" if role_id else ""
     embed = {
-        "author": {
-            "name": "New Internship Posted",
-            "icon_url": BRAND_ICON_URL
-        },
+        "author": {"name": "New Internship Posted", "icon_url": BRAND_ICON_URL},
         "title": job['role'],
         "url": job['link'],
         "description": f"**{job['company']}**\n[Apply now →]({job['link']})",
         "color": COLOR_MAP.get(category, COLOR_MAP["General"]),
-        "thumbnail": {
-            "url": BRAND_ICON_URL
-        },
+        "thumbnail": {"url": BRAND_ICON_URL},
         "fields": [
             {"name": "📍 Location", "value": job['location'], "inline": True},
             {"name": "🏷️ Track", "value": category, "inline": True},
         ],
-        "footer": {
-            "text": "Simplify Jobs Tracker"
-        },
+        "footer": {"text": "Simplify Jobs Tracker"},
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     payload = {
@@ -181,7 +176,21 @@ def send_discord_notification(job):
         "content": ping_text,
         "embeds": [embed]
     }
-    requests.post(DISCORD_WEBHOOK_URL, json=payload)
+
+    response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
+
+    if response.status_code == 429:
+        retry_after = response.json().get("retry_after", 2)
+        print(f"Rate limited, waiting {retry_after}s and retrying: {job['company']}")
+        time.sleep(retry_after + 0.5)
+        response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
+
+    if response.status_code >= 300:
+        print(f"FAILED to post {job['company']} - {job['role']}: {response.status_code} {response.text}")
+        return False  # not marked as seen — will retry next run
+
+    time.sleep(1)  # small buffer between posts in a burst, avoids triggering rate limits in the first place
+    return True
 
 def main():
     if not DISCORD_WEBHOOK_URL:
@@ -202,8 +211,8 @@ def main():
     print(f"Parsed {len(current_jobs)} total jobs. Found {len(new_jobs)} new listings.")
 
     for job in reversed(new_jobs):
-        send_discord_notification(job)
-        seen_ids.add(job['id'])
+        if send_discord_notification(job):
+            seen_ids.add(job['id'])
 
     with open(STATE_FILE, "w") as f:
         json.dump(list(seen_ids), f, indent=2)

@@ -13,6 +13,7 @@ TARGET_README_URLS = [
 
 STATE_FILE = "seen_jobs.json"
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
+BRAND_ICON_URL = "https://raw.githubusercontent.com/Domtz214/simplify-discord-notifier/main/assets/logo.png"
 
 # --- DISCORD ROLE CONFIGURATION ---
 ROLE_MAP = {
@@ -35,7 +36,7 @@ COLOR_MAP = {
 def categorize_job(role_title):
     title_lower = role_title.lower()
 
-    if any(k in title_lower for k in ["quant", "trader", "trading", "financial engineer", "quantitative"]):
+    if any(k in title_lower for k in ["quant", "trader", "trading", "financial engineer", "quantitative", "quantitative researcher", "quantitative developer"]):
         return "Quant"
     elif any(k in title_lower for k in ["data engineer", "ai", "machine learning", "ml", "deep learning", "analytics", "data analytics", "ai engineer", "data science", "data scientist"]):
         return "Data/AI"
@@ -152,20 +153,18 @@ def fetch_and_parse_jobs():
 def send_discord_notification(job):
     category = job['category']
     role_id = ROLE_MAP.get(category)
-
     ping_text = f"<@&{role_id}>" if role_id else ""
-
     embed = {
         "author": {
             "name": "New Internship Posted",
-            "icon_url": "https://raw.githubusercontent.com/SimplifyJobs/Simplify-Jobs/main/assets/icon.png"
+            "icon_url": BRAND_ICON_URL
         },
         "title": job['role'],
         "url": job['link'],
         "description": f"**{job['company']}**\n[Apply now →]({job['link']})",
         "color": COLOR_MAP.get(category, COLOR_MAP["General"]),
         "thumbnail": {
-            "url": "https://raw.githubusercontent.com/SimplifyJobs/Simplify-Jobs/main/assets/icon.png"
+            "url": BRAND_ICON_URL
         },
         "fields": [
             {"name": "📍 Location", "value": job['location'], "inline": True},
@@ -176,14 +175,12 @@ def send_discord_notification(job):
         },
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
-
     payload = {
         "username": "Simplify Job Alerts",
-        "avatar_url": "https://raw.githubusercontent.com/SimplifyJobs/Simplify-Jobs/main/assets/icon.png",
+        "avatar_url": BRAND_ICON_URL,
         "content": ping_text,
         "embeds": [embed]
     }
-
     requests.post(DISCORD_WEBHOOK_URL, json=payload)
 
 def main():

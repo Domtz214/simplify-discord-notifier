@@ -14,6 +14,8 @@ import os
 import requests
 from datetime import datetime, timezone
 
+BRAND_ICON_URL = "https://raw.githubusercontent.com/Domtz214/simplify-discord-notifier/main/assets/logo.png"
+
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 
 COLOR_MAP = {
@@ -48,14 +50,14 @@ def send_test_notification(job):
     embed = {
         "author": {
             "name": "New Internship Posted",
-            "icon_url": "https://raw.githubusercontent.com/Domtz214/simplify-discord-notifier/main/assets/icon.png"
+            "icon_url": BRAND_ICON_URL
         },
         "title": job["role"],
         "url": job["link"],
         "description": f"**{job['company']}**\n[Apply now →]({job['link']})",
         "color": COLOR_MAP.get(category, COLOR_MAP["General"]),
         "thumbnail": {
-            "url": "https://raw.githubusercontent.com/SimplifyJobs/Simplify-Jobs/main/assets/icon.png"
+            "url": BRAND_ICON_URL
         },
         "fields": [
             {"name": "📍 Location", "value": job["location"], "inline": True},
@@ -69,7 +71,7 @@ def send_test_notification(job):
 
     payload = {
         "username": "Simplify Job Alerts",
-        "avatar_url": "https://raw.githubusercontent.com/SimplifyJobs/Simplify-Jobs/main/assets/icon.png",
+        "avatar_url": BRAND_ICON_URL,
         "content": ping_text,
         "embeds": [embed]
     }

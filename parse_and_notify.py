@@ -152,39 +152,38 @@ def fetch_and_parse_jobs():
 def send_discord_notification(job):
     category = job['category']
     role_id = ROLE_MAP.get(category)
-    
-    ping_text = f"🚨 <@&{role_id}> **New {category} Internship Opening!**" if role_id else "🚨 **New Internship Opening!**"
-    
+
+    ping_text = f"<@&{role_id}>" if role_id else ""
+
     embed = {
-        "title": f"🏢 {job['company']}",
+        "author": {
+            "name": "New Internship Posted",
+            "icon_url": "https://raw.githubusercontent.com/SimplifyJobs/Simplify-Jobs/main/assets/icon.png"
+        },
+        "title": job['role'],
+        "url": job['link'],
+        "description": f"**{job['company']}**\n[Apply now →]({job['link']})",
         "color": COLOR_MAP.get(category, COLOR_MAP["General"]),
         "thumbnail": {
             "url": "https://raw.githubusercontent.com/SimplifyJobs/Simplify-Jobs/main/assets/icon.png"
         },
         "fields": [
-            {"name": "💻 Position", "value": f"**{job['role']}**", "inline": True},
-            {"name": "🏷️ Track", "value": f"`{category}`", "inline": True},
-            {"name": "📍 Location", "value": job['location'], "inline": False},
-            {
-                "name": "⚡ Direct Link", 
-                "value": f"```\n[ Click Below to Apply ]\n```\n🔗 [**Open Application Portal**]({job['link']})", 
-                "inline": False
-            }
+            {"name": "📍 Location", "value": job['location'], "inline": True},
+            {"name": "🏷️ Track", "value": category, "inline": True},
         ],
         "footer": {
-            "text": "SimplifyJobs Tracker • Executive Alert",
-            "icon_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+            "text": "Simplify Jobs Tracker"
         },
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
-    
+
     payload = {
         "username": "Simplify Job Alerts",
         "avatar_url": "https://raw.githubusercontent.com/SimplifyJobs/Simplify-Jobs/main/assets/icon.png",
         "content": ping_text,
         "embeds": [embed]
     }
-    
+
     requests.post(DISCORD_WEBHOOK_URL, json=payload)
 
 def main():

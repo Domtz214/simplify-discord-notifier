@@ -48,7 +48,7 @@ def send_test_notification(job):
     embed = {
         "author": {
             "name": "New Internship Posted",
-            "icon_url": "https://raw.githubusercontent.com/SimplifyJobs/Simplify-Jobs/main/assets/icon.png"
+            "icon_url": "https://raw.githubusercontent.com/Domtz214/simplify-discord-notifier/main/assets/icon.png"
         },
         "title": job["role"],
         "url": job["link"],
